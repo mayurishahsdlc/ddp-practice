@@ -1,48 +1,51 @@
 pipeline {
-
     agent any
 
     environment {
-        PORT = credentials('ddp-port')
-        APP_NAME = credentials('ddp-app-name')
+        PORT = '4000'
+        APP_NAME = 'Docker Deployment App'
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                checkout scm
+                echo 'Checking out source code...'
             }
         }
 
         stage('Create Environment File') {
             steps {
                 sh '''
-                    echo "PORT=${PORT}" > .env
-                    echo "APP_NAME=${APP_NAME}" >> .env
-
-                    echo ".env file created"
+                    cat > .env <<EOF
+PORT=${PORT}
+APP_NAME=${APP_NAME}
+EOF
                 '''
             }
         }
 
         stage('Docker Check') {
             steps {
-                sh 'docker --version'
-                sh 'docker-compose --version'
+                sh '''
+                    docker --version
+                    docker-compose --version
+                '''
             }
         }
 
         stage('Build') {
             steps {
-                sh 'docker-compose build'
+                sh '''
+                    docker-compose build
+                '''
             }
         }
 
         stage('Deploy') {
             steps {
                 sh '''
-                    docker-compose down --remove-orphans
+                    docker-compose down || true
                     docker-compose up -d
                 '''
             }
@@ -51,21 +54,23 @@ pipeline {
         stage('Health Check') {
             steps {
                 sh '''
-                    echo "Checking backend health..."
+                    echo "Waiting for backend..."
 
                     for i in {1..12}
                     do
                         if curl -f http://localhost:4000/health
                         then
-                            echo "Backend is healthy"
+                            echo "Backend is healthy!"
                             exit 0
                         fi
 
-                        echo "Waiting for backend..."
+                        echo "Health check attempt $i failed..."
                         sleep 5
                     done
 
-                    echo "Health check failed"
+                    echo "Backend health check failed"
+                    docker-compose ps
+                    docker-compose logs --tail=50 backend
                     exit 1
                 '''
             }
@@ -73,22 +78,19 @@ pipeline {
 
         stage('Status') {
             steps {
-                sh 'docker-compose ps'
+                sh '''
+                    docker-compose ps
+                    docker ps
+                '''
             }
         }
     }
 
     post {
         always {
-            sh 'rm -f .env'
-        }
-
-        success {
-            echo 'Deployment completed successfully!'
-        }
-
-        failure {
-            echo 'Deployment failed!'
+            sh '''
+                rm -f .env
+            '''
         }
     }
 }
