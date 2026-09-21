@@ -1,7 +1,13 @@
 pipeline {
-   
-    agent any
-    
+     
+	agent any 
+	
+	
+	environment {
+	    PORT = credentials('ddp-port')
+		APP_NAME = credentials('ddp-app-name')
+	}
+	
 	stages {
 	    
 		stage('Checkout') {
@@ -9,32 +15,43 @@ pipeline {
 			    checkout scm
 			}
 		}
-		
-		stage('Docker Check') {
+	    
+		stage('Create Environment File') {
 		    steps {
-			    sh 'docker --version'
-				sh 'docker-compose --version'
-			}
-        }
- 		
-		stage('Build') {
-		    steps {
-			    sh 'docker-compose build'
+			    sh '''
+				    cat> .env <<EOF
+PORT=${PORT}
+APP_NAME=${APP_NAME}
+EOF
+                    '''
 			}
 		}
-		
-		stage('Deploy') {
-		    steps {
-			    sh 'docker-compose up -d'
+      
+        stage('Docker Check') {
+            steps {
+                sh 'docker --version'
+				sh 'docker-compose --version'
+			}
+		}
+ 
+        stage('Build') {
+            steps {
+                sh 'docker-compose build'
+          	}
+        }
+        
+        stage('Deploy') {
+            steps {			
+				sh 'docker-compose up -d'
 			}
 		}
 		
 		stage('Health Check') {
 		    steps {
 			    sh '''
-				    for i in {1..12}
-					do
-					    if curl -f http://localhost:4000/health
+				   for i in {1..12}
+				   do
+				        if curl -f http://localhost:4000/health
 						then
 						    echo "Backend is healthy"
 							exit 0
@@ -42,18 +59,22 @@ pipeline {
 						
 						echo "Waiting for backend..."
 						sleep 5
-					done					
-			        echo "Health check failed"
+					done
+					
+					echo "Health check failed"
 					exit 1
 				'''
 			}
 		}
-		
-		
-	    stage('Status') {
+		stage('status') {
 		    steps {
 			    sh 'docker-compose ps'
 			}
+		}	
+	}			
+	post { 
+	    always {
+		    sh 'rm -f .env'
 		}
 	}
 }
