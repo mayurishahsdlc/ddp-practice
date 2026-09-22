@@ -3,7 +3,7 @@ const express = require("express");
 const app = express();
 
 const PORT = process.env.PORT || 4000;
-const APP_NAME = process.env.APP_NAME || "Docker Deployment App";
+const APP_NAME = process.env.APP_NAME || "Docker Deployment App - STAGING";
 
 app.get("/", (req, res) => {
   res.send(`
